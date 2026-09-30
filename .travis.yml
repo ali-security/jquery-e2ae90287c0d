@@ -1,3 +1,39 @@
 language: node_js
+dist: focal
 node_js:
 - '0.10'
+# Travis restores a cached node_modules by default, which would bypass the
+# registry time machine below; always install fresh
+cache:
+  npm: false
+addons:
+  apt:
+    packages:
+    # Shared libraries needed by puppeteer's bundled Chrome
+    - libgbm1
+    - libnss3
+    - libatk-bridge2.0-0
+    - libxkbcommon0
+    - libgtk-3-0
+    - libasound2
+    - libxss1
+    - libxcomposite1
+    - libxdamage1
+    - libxrandr2
+    - libdrm2
+    - libcups2
+    - libpango-1.0-0
+before_install:
+# Resolve the (floating) build dependencies as of the 1.11.1 release date
+- npm config set registry https://:2014-05-01T18%3A05%3A32.863Z@time-machines-npm.sealsecurity.io/
+script:
+# Build + lint (jsonlint, build, jshint/jscs, uglify, compare_size)
+- npm test
+# Run the browser QUnit suite (test/index.html) in headless Chrome on a modern node;
+# puppeteer is installed outside the project from the live registry
+- nvm install 18
+- (mkdir -p /tmp/qunit-runner && cd /tmp/qunit-runner && npm install --no-save --no-package-lock --registry=https://registry.npmjs.org/ puppeteer@22.15.0)
+# The ajax tests' test/data/*.php helpers are served by php -S; use the image's
+# phpenv PHP 8.x (focal's apt PHP 7.4 built-in server intermittently never answers
+# a request, timing out iframe tests)
+- PHP_BIN="$(phpenv which php)" && "$PHP_BIN" --version && PHP_BIN="$PHP_BIN" NODE_PATH=/tmp/qunit-runner/node_modules node test/run-qunit-headless.cjs

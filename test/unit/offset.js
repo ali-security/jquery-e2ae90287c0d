@@ -550,7 +550,10 @@ test("fractions (see #7730 and #7885)", function() {
 
 	result = div.offset();
 
-	equal( result.top, expected.top, "Check top" );
+	// Support: Chrome
+	// Recent Chrome returns a top within a layout unit (1/64px) of the expected value
+	// (same tolerance upstream jQuery later adopted for this test)
+	ok( Math.abs( result.top - expected.top ) < 0.25, "Check top within 0.25 of expected" );
 	equal( result.left, expected.left, "Check left" );
 
 	div.remove();

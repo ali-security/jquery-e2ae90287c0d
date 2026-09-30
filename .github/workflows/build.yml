@@ -1,0 +1,76 @@
+name: build
+
+# Build and pack only; the lint + QUnit test suite runs on Travis (.travis.yml)
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same node/npm as Travis (node 0.10.48, npm 2.15.1); actions/setup-node
+      # does not reliably serve 0.10, so use the official release tarball
+      - name: Install Node.js 0.10.48
+        run: |
+          curl -fsSL https://nodejs.org/dist/v0.10.48/node-v0.10.48-linux-x64.tar.gz -o "$RUNNER_TEMP/node.tar.gz"
+          mkdir -p "$RUNNER_TEMP/node-v0.10.48"
+          tar -xzf "$RUNNER_TEMP/node.tar.gz" -C "$RUNNER_TEMP/node-v0.10.48" --strip-components=1
+          echo "$RUNNER_TEMP/node-v0.10.48/bin" >> "$GITHUB_PATH"
+
+      - name: Show versions
+        run: |
+          node --version
+          npm --version
+
+      # Resolve the (floating) build dependencies as of the 1.11.1 release date
+      - name: Configure npm registry time machine
+        run: npm config set registry "https://:2014-05-01T18%3A05%3A32.863Z@time-machines-npm.sealsecurity.io/"
+
+      - name: Install dependencies
+        run: npm install
+
+      # The default grunt task, as run by `npm test` on Travis; regenerates dist/
+      - name: Build
+        run: ./node_modules/.bin/grunt
+
+      # dist/cdn/* copies, as upstream's release tooling generated them via
+      # build/release.js (generateArtifacts -> makeReleaseCopies)
+      - name: Generate release copies (dist/cdn)
+        run: |
+          npm install shelljs@0.2.6
+          node -e '
+            var Release = {
+              newVersion: "1.11.1",
+              preRelease: false,
+              complete: function() {},
+              // generateArtifacts runs Release.exec("grunt"); grunt already ran in the Build step
+              exec: function() {},
+              define: function( props ) {
+                for ( var key in props ) {
+                  Release[ key ] = props[ key ];
+                }
+              }
+            };
+            require( "./build/release.js" )( Release );
+            Release.generateArtifacts(function( files ) {
+              console.log( "Release artifacts: " + files.join( ", " ) );
+            });
+          '
+          ls -l dist dist/cdn
+
+      # .github/ is fork-only CI (not in upstream's .npmignore); keep it out of the tarball
+      - name: Pack
+        run: |
+          rm -rf .github
+          npm pack
+          mkdir -p out
+          mv jquery-1.11.1.tgz out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jquery-1.11.1
+          path: out/jquery-1.11.1.tgz
+          if-no-files-found: error
