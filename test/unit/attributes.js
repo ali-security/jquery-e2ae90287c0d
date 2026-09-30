@@ -477,7 +477,9 @@ test( "attr(String, Object)", function() {
 test( "attr - extending the boolean attrHandle", function() {
 	expect( 1 );
 	var called = false,
-		_handle = jQuery.expr.attrHandle.checked || $.noop;
+		origAttrHandleHadChecked = "checked" in jQuery.expr.attrHandle,
+		origAttrHandleChecked = jQuery.expr.attrHandle.checked,
+		_handle = origAttrHandleChecked || $.noop;
 	jQuery.expr.attrHandle.checked = function() {
 		called = true;
 		_handle.apply( this, arguments );
@@ -486,6 +488,13 @@ test( "attr - extending the boolean attrHandle", function() {
 	called = false;
 	jQuery( "input" ).attr( "checked" );
 	ok( called, "The boolean attrHandle does not drop custom attrHandles" );
+
+	if ( origAttrHandleHadChecked ) {
+		jQuery.expr.attrHandle.checked = origAttrHandleChecked;
+	} else {
+		delete jQuery.expr.attrHandle.checked;
+	}
+
 });
 
 test( "attr(String, Object) - Loaded via XML document", function() {
@@ -1475,4 +1484,49 @@ test( "Insignificant white space returned for $(option).val() (#14858)", functio
 
 	val = jQuery( "<option>  test  </option>" ).val();
 	equal( val.length, 4, "insignificant white-space returned for value" );
+});
+
+test( "non-lowercase boolean attribute getters should not crash", function() {
+	expect( 3 );
+
+	var elem = jQuery( "<input checked required autofocus type='checkbox'>" );
+
+	jQuery.each( {
+		checked: "Checked",
+		required: "requiRed",
+		autofocus: "AUTOFOCUS"
+	}, function( lowercased, original ) {
+		try {
+			strictEqual( elem.attr( original ), lowercased,
+				"The '" + this + "' attribute getter should return the lowercased name" );
+		} catch ( e ) {
+			ok( false, "The '" + this + "' attribute getter threw" );
+		}
+	});
+});
+
+test( "non-lowercase boolean attribute selectors should not crash", function() {
+	expect( 6 );
+
+	var elems = jQuery( "<input checked required autofocus type='checkbox'><input type='text'>" );
+
+	jQuery.each( {
+		checked: "Checked",
+		required: "requiRed",
+		autofocus: "AUTOFOCUS"
+	}, function( lowercased, original ) {
+		try {
+			strictEqual( jQuery.find.attr( elems[ 0 ], original ), lowercased,
+				"The '" + this + "' boolean attrHandle should return the lowercased name" );
+		} catch ( e ) {
+			ok( false, "The '" + this + "' boolean attrHandle threw" );
+		}
+
+		try {
+			strictEqual( elems.filter( "[" + original + "]" ).length, 1,
+				"The '[" + this + "]' selector should match the element having the attribute" );
+		} catch ( e ) {
+			ok( false, "The '[" + this + "]' selector threw" );
+		}
+	});
 });
