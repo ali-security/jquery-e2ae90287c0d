@@ -1341,6 +1341,57 @@ test("jQuery.parseHTML", function() {
 	equal( jQuery.parseHTML("<td><td>")[ 1 ].parentNode.nodeType, 11, "parentNode should be documentFragment" );
 });
 
+test("jQuery.parseHTML(<a href>) - gh-2965", function() {
+	expect( 1 );
+
+	var html = "<a href='test.html'></a>",
+		href = jQuery.parseHTML( html )[ 0 ].href;
+
+	ok( /\/test\.html$/.test( href ), "href is not lost after parsing anchor" );
+});
+
+if ( jQuery.support.createHTMLDocument ) {
+	asyncTest("jQuery.parseHTML", function() {
+		expect ( 1 );
+
+		Globals.register("parseHTMLError");
+
+		jQuery.globalEval("parseHTMLError = false;");
+		jQuery.parseHTML( "<img src=x onerror='parseHTMLError = true'>" );
+
+		window.setTimeout(function() {
+			start();
+			equal( window.parseHTMLError, false, "onerror eventhandler has not been called." );
+		}, 2000);
+	});
+
+	asyncTest("jQuery.parseHTML - inline event handlers are not executed while parsing", function() {
+		expect( 3 );
+
+		Globals.register("parseHTMLHandlers");
+
+		jQuery.globalEval("parseHTMLHandlers = [];");
+
+		var nodes = jQuery.parseHTML(
+			"<div><img src='x' onerror='parseHTMLHandlers.push(\"nested img\")'></div>" +
+			"<img src='x' onerror='parseHTMLHandlers.push(\"img\")'>" +
+			"<video src='x' onerror='parseHTMLHandlers.push(\"video\")'></video>" +
+			"<script>parseHTMLHandlers.push(\"script\");</script>",
+			true
+		);
+
+		equal( nodes.length, 4, "All nodes are returned (scripts kept on request)" );
+		notStrictEqual( nodes[ 0 ].ownerDocument, document,
+			"Nodes are not created in the current document" );
+
+		window.setTimeout(function() {
+			start();
+			equal( window.parseHTMLHandlers.length, 0,
+				"No inline event handler or script was executed: " + window.parseHTMLHandlers.join(", ") );
+		}, 2000);
+	});
+}
+
 test("jQuery.parseJSON", function() {
 	expect( 20 );
 
